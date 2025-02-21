@@ -1,0 +1,5 @@
+env/
+message_logs/
+**pycache**
+*.json
+**temp**
