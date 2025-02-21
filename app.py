@@ -49,7 +49,7 @@ async def start(update: Update, context: CallbackContext):
         'Welcome! Here are the available commands:\n\n'
         '/book - Book a concept\n'
         '/view - View all booked concepts\n'
-        '/view dd.mm - View bookings for a specific day\n'
+        '/view [date] - View bookings for a specific day\n (dd.mm, dd/mm, dd)'
         '/my - View your bookings\n'
         '/delete - Delete your bookings'
     )
@@ -129,7 +129,7 @@ def main() -> None:
     application.add_handler(CommandHandler("my", my_bookings))
 
     # Add handler for booking response
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^(yes|no)$'), handle_booking_response))
+    application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^(yes|no|Yes|No|NO)$'), handle_booking_response))
 
     # Add message handlers
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, book_table))

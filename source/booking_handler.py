@@ -1,7 +1,6 @@
 from datetime import datetime
 from .data_handler import *
 from .datetime_parser import parse_booking_datetime
-
 async def book_table(update, context):
     message_text = update.message.text
     user_id = update.effective_user.id

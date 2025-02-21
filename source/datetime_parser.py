@@ -1,5 +1,6 @@
 import re
 from datetime import datetime, timedelta
+from .view_handler import get_target_date
 
 def parse_booking_datetime(message_text):
     patterns = [
@@ -28,7 +29,8 @@ def parse_booking_datetime(message_text):
                 elif len(groups) == 4:
                     if ':' in message_text or '.' in message_text:  # dd hh:mm or dd hh.mm (with optional number of places)
                         day, hour, minute, places = groups
-                        month, year = current_date.month, current_date.year
+                        target_date = get_target_date(int(day), current_date)
+                        month, year = target_date.month, target_date.year
                     else:  # dd.mm hhmm or dd/mm hhmm (with optional number of places)
                         day, month, time, places = groups
                         hour, minute = divmod(int(time), 100)
@@ -43,7 +45,8 @@ def parse_booking_datetime(message_text):
                     else:  # dd hhmm (with optional number of places)
                         day, time, places = groups
                         hour, minute = divmod(int(time), 100)
-                        month, year = current_date.month, current_date.year
+                        target_date = get_target_date(int(day), current_date)
+                        month, year = target_date.month, target_date.year
                 else:  # hhmm (with optional number of places)
                     time, places = groups
                     hour, minute = divmod(int(time), 100)
