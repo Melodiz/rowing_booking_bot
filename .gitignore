@@ -3,3 +3,5 @@ message_logs/
 **pycache**
 *.json
 **temp**
+password.txt
+users.csv

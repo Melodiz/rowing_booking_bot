@@ -2,64 +2,88 @@ import re
 from datetime import datetime, timedelta
 from .view_handler import get_target_date
 
-def parse_booking_datetime(message_text):
-    patterns = [
-        r'^(\d{2})\.(\d{2})\s(\d{2})[:.:](\d{2})(?:\s(\d+))?$',  # dd.mm hh:mm or dd.mm hh.mm (with optional number of places)
-        r'^(\d{2})\.(\d{2})\s(\d{4})(?:\s(\d+))?$',  # dd.mm hhmm (with optional number of places)
-        r'^(\d{2})/(\d{2})\s(\d{2})[:.:](\d{2})(?:\s(\d+))?$',  # dd/mm hh:mm or dd/mm hh.mm (with optional number of places)
-        r'^(\d{2})/(\d{2})\s(\d{4})(?:\s(\d+))?$',  # dd/mm hhmm (with optional number of places)
-        r'^(\d{2})\s(\d{2}):(\d{2})(?:\s(\d+))?$',  # dd hh:mm (with optional number of places)
-        r'^(\d{2})\s(\d{2})\.(\d{2})(?:\s(\d+))?$',  # dd hh.mm (with optional number of places)
-        r'^(\d{2})\s(\d{4})(?:\s(\d+))?$',  # dd hhmm (with optional number of places)
-        r'^(\d{4})(?:\s(\d+))?$',  # hhmm (with optional number of places)
-        r'^(\d{2})[:.:](\d{2})(?:\s(\d+))?$'  # hh:mm or hh.mm (with optional number of places)
+def parse_date(date_str, current_date):
+    date_patterns = [
+        r'^(\d{2})\.(\d{2})$',  # dd.mm
+        r'^(\d{2})/(\d{2})$',  # dd/mm
+        r'^(\d{2})$'  # dd
     ]
     
-    current_date = datetime.now()
-    
-    for pattern in patterns:
-        match = re.match(pattern, message_text)
+    for pattern in date_patterns:
+        match = re.match(pattern, date_str)
         if match:
             groups = match.groups()
+            if len(groups) == 2:  # dd.mm or dd/mm
+                day, month = map(int, groups)
+                year = current_date.year
+            else:  # dd
+                day = int(groups[0])
+                target_date = get_target_date(day, current_date)
+                month, year = target_date.month, target_date.year
             
             try:
-                if len(groups) == 5:  # dd.mm hh:mm or dd.mm hh.mm or dd/mm hh:mm or dd/mm hh.mm (with optional number of places)
-                    day, month, hour, minute, places = groups
-                    year = current_date.year
-                elif len(groups) == 4:
-                    if ':' in message_text or '.' in message_text:  # dd hh:mm or dd hh.mm (with optional number of places)
-                        day, hour, minute, places = groups
-                        target_date = get_target_date(int(day), current_date)
-                        month, year = target_date.month, target_date.year
-                    else:  # dd.mm hhmm or dd/mm hhmm (with optional number of places)
-                        day, month, time, places = groups
-                        hour, minute = divmod(int(time), 100)
-                        year = current_date.year
-                elif len(groups) == 3:  # dd hhmm or hh:mm or hh.mm (with optional number of places)
-                    if ':' in message_text or '.' in message_text:  # hh:mm or hh.mm (with optional number of places)
-                        hour, minute, places = groups
-                        day, month, year = current_date.day, current_date.month, current_date.year
-                        booking_datetime = datetime(year, month, day, int(hour), int(minute))
-                        if booking_datetime <= current_date:
-                            booking_datetime += timedelta(days=1)
-                    else:  # dd hhmm (with optional number of places)
-                        day, time, places = groups
-                        hour, minute = divmod(int(time), 100)
-                        target_date = get_target_date(int(day), current_date)
-                        month, year = target_date.month, target_date.year
-                else:  # hhmm (with optional number of places)
-                    time, places = groups
-                    hour, minute = divmod(int(time), 100)
-                    day, month, year = current_date.day, current_date.month, current_date.year
-                
-                if 'booking_datetime' not in locals():
-                    booking_datetime = datetime(year, int(month), int(day), int(hour), int(minute))
-                
-                places = int(places) if places else 1  # Default to 1 place if not specified
-                
-                return booking_datetime, places
-            
+                return datetime(year, month, day).date()
             except ValueError:
-                return None, None
+                return None
     
-    return None, None
+    return None
+
+def parse_time(time_str):
+    time_patterns = [
+        r'^(\d{2})[:.:](\d{2})$',  # hh:mm or hh.mm
+        r'^(\d{4})$',  # hhmm
+    ]
+    
+    for pattern in time_patterns:
+        match = re.match(pattern, time_str)
+        if match:
+            groups = match.groups()
+            if len(groups) == 2:  # hh:mm or hh.mm
+                hour, minute = map(int, groups)
+            else:  # hhmm
+                hour, minute = divmod(int(groups[0]), 100)
+            
+            try:
+                return datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0).time()
+            except ValueError:
+                return None
+    
+    return None
+
+def parse_amount(amount_str):
+    try:
+        return int(amount_str)
+    except ValueError:
+        return 1  # Default to 1 if not specified or invalid
+
+def parse_booking_datetime(message_text):
+    parts = re.split(r'\s+', message_text.strip())
+    current_date = datetime.now().date()
+    
+    if len(parts) < 1:
+        return None, None
+    
+    time_part = parts[0]
+    amount_part = None
+    
+    # Check if the last part is 'k' followed by a number
+    if len(parts) > 1 and parts[-1].lower().startswith('k'):
+        amount_part = parts[-1][1:]  # Remove the 'k' and keep the number
+        parts = parts[:-1]  # Remove the last part from parts
+    elif len(parts) > 1 and parts[-1].isdigit():
+        amount_part = parts[-1]
+        parts = parts[:-1]
+    
+    parsed_time = parse_time(time_part)
+    amount = parse_amount(amount_part) if amount_part else 1
+    
+    if parsed_time is None:
+        return None, None
+    
+    booking_datetime = datetime.combine(current_date, parsed_time)
+    
+    # If the booking time is in the past, move it to tomorrow
+    if booking_datetime <= datetime.now():
+        booking_datetime += timedelta(days=1)
+    
+    return booking_datetime, amount

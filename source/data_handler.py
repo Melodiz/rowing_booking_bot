@@ -1,14 +1,11 @@
+import pandas as pd
 import json
 import logging
-import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, time
 import os
 
-# File to store bookings
 BOOKINGS_FILE = 'bookings.json'
-
-# Initialize DataFrame to store bookings
-bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time'])
+bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places'])
 
 # Maximum number of bookings per hour
 MAX_BOOKINGS_PER_HOUR = 6
@@ -31,35 +28,39 @@ def get_token():
 
 
 def load_bookings():
-    remove_old_bookings()
     global bookings_df
     try:
         with open(BOOKINGS_FILE, 'r') as file:
             bookings_data = json.load(file)
-            bookings_df = pd.DataFrame(bookings_data)
-            bookings_df['date'] = pd.to_datetime(bookings_df['date']).dt.date
-            bookings_df['time'] = pd.to_datetime(
-                bookings_df['time'], format='%H:%M:%S').dt.time
+            if bookings_data:
+                bookings_df = pd.DataFrame(bookings_data)
+                bookings_df['date'] = pd.to_datetime(bookings_df['date']).dt.date
+                bookings_df['time'] = pd.to_datetime(bookings_df['time'], format='%H:%M:%S').dt.time
+            else:
+                bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places'])
     except FileNotFoundError:
-        logging.info(
-            "Bookings file not found. Starting with an empty DataFrame.")
+        logging.info("Bookings file not found. Starting with an empty DataFrame.")
+        bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places'])
     except json.JSONDecodeError:
-        logging.error(
-            "Error decoding JSON from bookings file. Starting with an empty DataFrame.")
+        logging.error("Error decoding JSON from bookings file. Starting with an empty DataFrame.")
+        bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places'])
 
 
-def save_bookings(bookings):
-    # Convert datetime objects to string for JSON serialization
-    serializable_bookings = []
-    for booking in bookings:
-        serializable_booking = booking.copy()
-        serializable_booking['date'] = booking['date'].strftime('%Y-%m-%d')
-        serializable_booking['time'] = booking['time'].strftime('%H:%M:%S')
-        serializable_bookings.append(serializable_booking)
-
-    # Save the bookings to a JSON file
-    with open('bookings.json', 'w') as f:
-        json.dump(serializable_bookings, f, indent=2)
+def save_bookings(updated_bookings=None):
+    global bookings_df
+    if updated_bookings is not None:
+        bookings_df = pd.DataFrame(updated_bookings)
+    
+    # Convert date and time objects to strings
+    bookings_data = bookings_df.to_dict('records')
+    for booking in bookings_data:
+        if isinstance(booking['date'], date):
+            booking['date'] = booking['date'].isoformat()
+        if isinstance(booking['time'], time):
+            booking['time'] = booking['time'].isoformat()
+    
+    with open(BOOKINGS_FILE, 'w') as file:
+        json.dump(bookings_data, file, default=str)
 
 
 def add_booking(user_id, booking_datetime):
@@ -74,51 +75,56 @@ def add_booking(user_id, booking_datetime):
 
 
 def is_space_available(booking_datetime):
-    global bookings_df
-    start_time = booking_datetime.replace(minute=0, second=0, microsecond=0)
-    end_time = start_time + timedelta(hours=1)
-    
-    existing_bookings = bookings_df[
-        (bookings_df['date'] == booking_datetime.date()) &
-        (bookings_df['time'] >= start_time.time()) &
-        (bookings_df['time'] < end_time.time())
-    ]
-    
-    return len(existing_bookings) < MAX_BOOKINGS_PER_HOUR
+    available_places = get_available_places(booking_datetime)
+    return available_places > 0
+
 
 def get_available_places(booking_datetime):
     remove_old_bookings()
     global bookings_df
-    start_time = booking_datetime.replace(minute=0, second=0, microsecond=0)
-    end_time = start_time + timedelta(hours=1)
+    if bookings_df.empty:
+        return MAX_BOOKINGS_PER_HOUR
+    
+    # Round down to the nearest hour
+    hour_start = booking_datetime.replace(minute=0, second=0, microsecond=0)
+    hour_end = hour_start + timedelta(hours=1)
     
     existing_bookings = bookings_df[
         (bookings_df['date'] == booking_datetime.date()) &
-        (bookings_df['time'] >= start_time.time()) &
-        (bookings_df['time'] < end_time.time())
+        (bookings_df['time'] >= hour_start.time()) &
+        (bookings_df['time'] < hour_end.time())
     ]
     
-    occupied_places = len(existing_bookings)
-    available_places = MAX_BOOKINGS_PER_HOUR - occupied_places
-    
+    booked_places = existing_bookings['places'].sum() if 'places' in existing_bookings.columns else len(existing_bookings)
+    available_places = MAX_BOOKINGS_PER_HOUR - booked_places
     return max(0, available_places)  # Ensure we don't return a negative number
 
-def add_booking(user_id, booking_datetime):
-    bookings = get_all_bookings()
-    new_booking = {
-        'user_id': user_id,
-        'date': booking_datetime.date(),
-        'time': booking_datetime.time()
-    }
-    bookings.append(new_booking)
-    save_bookings(bookings)
-    return True  # You might want to add some validation logic here
+def add_booking(user_id, booking_datetime, places=1):
+    global bookings_df
+    available_places = get_available_places(booking_datetime)
+    
+    if available_places < places:
+        return False  # Not enough space available
+    
+    new_booking = pd.DataFrame({
+        'user_id': [user_id],
+        'date': [booking_datetime.date()],
+        'time': [booking_datetime.replace(minute=0, second=0, microsecond=0).time()],  # Round down to the hour
+        'places': [places]
+    })
+    bookings_df = pd.concat([bookings_df, new_booking], ignore_index=True)
+    save_bookings()
+    return True
 
 def get_all_bookings():
     try:
         with open('bookings.json', 'r') as f:
             bookings = json.load(f)
         
+        if not bookings:
+            logging.info("Bookings file is empty.")
+            return []
+
         # Convert string dates and times back to datetime objects
         for booking in bookings:
             booking['date'] = datetime.strptime(booking['date'], '%Y-%m-%d').date()
@@ -126,8 +132,13 @@ def get_all_bookings():
         
         return bookings
     except FileNotFoundError:
-        return []  # Return an empty list if the file doesn't exist yet
-
+        logging.info("Bookings file not found. Creating a new one.")
+        with open('bookings.json', 'w') as f:
+            json.dump([], f)
+        return []
+    except json.JSONDecodeError:
+        logging.error("Error decoding JSON from bookings file. Starting with an empty list.")
+        return []
 
 def save_message_to_json(user_id, username, message_text, timestamp):
     """Save a message to a JSON file."""
@@ -158,6 +169,8 @@ def get_user_bookings(user_id):
 
 def remove_old_bookings():
     bookings = get_all_bookings()
+    if not bookings:
+        return []  # If bookings is empty, just return an empty list
     current_datetime = datetime.now()
     updated_bookings = [
         booking for booking in bookings
@@ -165,3 +178,25 @@ def remove_old_bookings():
     ]
     save_bookings(updated_bookings)
     return updated_bookings
+
+def get_user_data():
+    try:
+        df = pd.read_csv('users.csv')
+        return dict(zip(df['user_id'], zip(df['name'], df['telegram_link'])))
+    except FileNotFoundError:
+        return {}
+    
+
+def get_user_name(user_id):
+    try:
+        df = pd.read_csv('users.csv')
+        user_row = df[df['user_id'] == user_id]
+        if not user_row.empty:
+            return user_row['name'].iloc[0]
+        else:
+            return None
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        logging.error(f"Error retrieving user name: {e}")
+        return None

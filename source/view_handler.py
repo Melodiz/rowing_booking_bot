@@ -1,8 +1,9 @@
-from .data_handler import get_all_bookings, remove_old_bookings
+import pandas as pd
+from .data_handler import *
 from datetime import datetime, date, timedelta
 from collections import defaultdict
+from source.user_handler import require_verification
 
-from datetime import datetime
 
 def format_bookings(bookings):
     if not bookings:
@@ -30,8 +31,9 @@ def format_bookings(bookings):
 
     return "\n".join(output)
 
+@require_verification
 async def view_bookings(update, context):
-    """Shows all booked concepts or bookings for a specific day, grouped by time."""
+    """Shows all booked concepts or bookings for a specific day or user, grouped by time and users."""
     user_input = context.args[0] if context.args else None
     remove_old_bookings()
     bookings = get_all_bookings()
@@ -40,7 +42,18 @@ async def view_bookings(update, context):
         await update.message.reply_text("No bookings found.")
         return
 
-    if user_input:
+    user_id = update.effective_user.id
+    is_my_command = update.message.text.startswith('/my')
+
+    if is_my_command:
+        # Filter bookings for the current user
+        filtered_bookings = [b for b in bookings if b['user_id'] == user_id]
+        if not filtered_bookings:
+            await update.message.reply_text("You have no bookings.")
+            return
+        grouped_bookings = group_bookings(filtered_bookings, include_date=True)
+        message = "Your bookings:\n\n"
+    elif user_input:
         try:
             current_date = datetime.now()
             if '.' in user_input:
@@ -59,26 +72,32 @@ async def view_bookings(update, context):
 
             grouped_bookings = group_bookings(filtered_bookings, include_date=False)
             message = f"Bookings for {target_date.strftime('%d.%m')}:\n\n"
-            for time_slot, count in grouped_bookings.items():
-                message += f"{time_slot}: {count} concept{'s' if count > 1 else ''}\n"
         except ValueError:
             await update.message.reply_text("Invalid date format. Please use dd.mm or dd")
             return
     else:
         grouped_bookings = group_bookings(bookings, include_date=True)
         message = "All booked concepts:\n\n"
-        
-        # Sort dates from nearest to farthest
-        today = date.today()
-        sorted_dates = sorted(grouped_bookings.keys(), key=lambda x: abs((datetime.strptime(x.split()[0], '%d/%m').replace(year=today.year).date() - today).days))
-        
-        for date_str in sorted_dates:
-            message += f"{date_str}\n"
-            for time_slot, count in grouped_bookings[date_str].items():
-                message += f"{time_slot}: {count} concept{'s' if count > 1 else ''}\n"
-            message += "\n"
 
-    await update.message.reply_text(message)
+    # Sort dates from nearest to farthest
+    today = date.today()
+    sorted_dates = sorted(grouped_bookings.keys(), key=lambda x: abs((datetime.strptime(x.split()[0], '%d/%m').replace(year=today.year).date() - today).days))
+
+    for date_str in sorted_dates:
+        message += f"{date_str}\n"
+        for time_slot, users in grouped_bookings[date_str].items():
+            if is_my_command:
+                # For /my command, we only need to show the user's own bookings
+                user_info = users.get(get_user_name(user_id), {'count': 0, 'link': ''})
+                if user_info['count'] > 0:
+                    message += f"{time_slot}: {user_info['count']} concept{'s' if user_info['count'] > 1 else ''}\n"
+            else:
+                total_count = sum(user_info['count'] for user_info in users.values())
+                user_str = ", ".join(f"{user_info['count']}x <a href='{user_info['link']}'>{name}</a>" if user_info['link'] else f"{user_info['count']}x {name}" for name, user_info in users.items())
+                message += f"{time_slot}: {total_count} concept{'s' if total_count > 1 else ''} ({user_str})\n"
+        message += "\n"
+
+    await update.message.reply_text(message, parse_mode='HTML', disable_web_page_preview=True)
 
 def get_target_date(day, current_date):
     """Calculate the target date based on the given day and current date."""
@@ -91,17 +110,25 @@ def get_target_date(day, current_date):
         return date(next_month.year, next_month.month, day)
 
 def group_bookings(bookings, include_date=True):
-    """Group bookings by date and time, returning a count for each slot."""
+    """Group bookings by date and time, returning a count for each slot with user information."""
+    user_data = get_user_data()
     if include_date:
-        grouped = defaultdict(lambda: defaultdict(int))
+        grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'count': 0, 'link': ''})))
         for booking in bookings:
             date_str = booking['date'].strftime('%d/%m (%A)')
             time_str = booking['time'].strftime('%H:%M')
-            grouped[date_str][time_str] += 1
-        return {date: dict(sorted(time_slots.items())) for date, time_slots in grouped.items()}
+            user_name, user_link = user_data.get(booking['user_id'], ('Unknown', ''))
+            places = booking.get('places', 1)  # Default to 1 if 'places' is not present
+            grouped[date_str][time_str][user_name]['count'] += places
+            grouped[date_str][time_str][user_name]['link'] = user_link
+        return {date: {time: dict(users) for time, users in sorted(time_slots.items())} 
+                for date, time_slots in grouped.items()}
     else:
-        grouped = defaultdict(int)
+        grouped = defaultdict(lambda: defaultdict(lambda: {'count': 0, 'link': ''}))
         for booking in bookings:
             time_str = booking['time'].strftime('%H:%M')
-            grouped[time_str] += 1
-        return dict(sorted(grouped.items()))
+            user_name, user_link = user_data.get(booking['user_id'], ('Unknown', ''))
+            places = booking.get('places', 1)  # Default to 1 if 'places' is not present
+            grouped[time_str][user_name]['count'] += places
+            grouped[time_str][user_name]['link'] = user_link
+        return {time: dict(users) for time, users in sorted(grouped.items())}
