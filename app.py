@@ -61,7 +61,7 @@ async def start(update: Update, context: CallbackContext):
         '/view - View all booked concepts\n'
         '/view [date] - View bookings for a specific day (dd.mm, dd/mm, dd)\n'
         '/my - View your bookings\n'
-        '/delete - Delete your bookings'
+        '/delete - Delete your bookings\n'
         '/rename - Change your name (e.g., /rename John Doe)'
     )
 
