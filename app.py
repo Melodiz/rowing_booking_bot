@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from source.data_handler import get_token, load_bookings, save_message_to_json, get_user_bookings
-from source.booking_handler import book_table, handle_booking_response, process_booking_request
+from source.booking_handler import handle_booking_response, process_booking_request
 from source.view_handler import view_bookings, format_bookings
 from source.delete_handler import delete_bookings, setup_delete_handlers
 from telegram.ext import CallbackContext, CommandHandler, MessageHandler, filters, Application
@@ -13,7 +13,7 @@ from source.user_handler import *
 import re
 
 
-SAVE_MESSAGES = False 
+SAVE_MESSAGES = True 
 
 # Enable logging
 logging.basicConfig(
@@ -102,13 +102,13 @@ async def rename_command(update: Update, context: CallbackContext):
     else:
         await update.message.reply_text("An error occurred while updating your name. Please try again later.")
 
-@rate_limit
-@require_verification
-async def book_table(update: Update, context: CallbackContext):
-    """Handle booking requests."""
-    # The existing book_table logic goes here
-    # This function is now protected by the @require_verification decorator
-    await book_table(update, context)
+# @rate_limit
+# @require_verification
+# async def book_table(update: Update, context: CallbackContext):
+#     """Handle booking requests."""
+#     # The existing book_table logic goes here
+#     # This function is now protected by the @require_verification decorator
+#     await book_table(update, context)
 
 @rate_limit
 @require_verification
@@ -185,6 +185,7 @@ def main() -> None:
 
     # Add command handlers
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", start))
     application.add_handler(CommandHandler("verify", verify_command))
     application.add_handler(CommandHandler("book", book_command))
     application.add_handler(CommandHandler("delete", delete_command))

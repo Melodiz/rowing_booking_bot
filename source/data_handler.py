@@ -109,7 +109,7 @@ def add_booking(user_id, booking_datetime, places=1):
     new_booking = pd.DataFrame({
         'user_id': [user_id],
         'date': [booking_datetime.date()],
-        'time': [booking_datetime.replace(minute=0, second=0, microsecond=0).time()],  # Round down to the hour
+        'time': [booking_datetime.time()],  # Use the exact time without rounding
         'places': [places]
     })
     bookings_df = pd.concat([bookings_df, new_booking], ignore_index=True)

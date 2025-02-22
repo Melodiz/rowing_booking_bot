@@ -131,4 +131,5 @@ def group_bookings(bookings, include_date=True):
             places = booking.get('places', 1)  # Default to 1 if 'places' is not present
             grouped[time_str][user_name]['count'] += places
             grouped[time_str][user_name]['link'] = user_link
+        print(f'\n\n\n { {time: dict(users) for time, users in sorted(grouped.items())}}\n\n\n')
         return {time: dict(users) for time, users in sorted(grouped.items())}
