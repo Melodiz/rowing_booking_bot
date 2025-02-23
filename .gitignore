@@ -5,3 +5,6 @@ message_logs/
 **temp**
 password.txt
 users.csv
+backups
+users_backups
+**.DS_Store**

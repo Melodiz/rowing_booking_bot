@@ -1,0 +1,17 @@
+[Unit]
+Description=Concept Booker Bot Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/Concept_booker
+ExecStart=/root/Concept_booker/env/bin/python /root/Concept_booker/app.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
