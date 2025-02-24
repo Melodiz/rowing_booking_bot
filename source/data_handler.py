@@ -84,20 +84,29 @@ def get_available_places(booking_datetime):
     global bookings_df
     if bookings_df.empty:
         return MAX_BOOKINGS_PER_HOUR
-    
-    # Round down to the nearest hour
-    hour_start = booking_datetime.replace(minute=0, second=0, microsecond=0)
-    hour_end = hour_start + timedelta(hours=1)
-    
-    existing_bookings = bookings_df[
-        (bookings_df['date'] == booking_datetime.date()) &
-        (bookings_df['time'] >= hour_start.time()) &
-        (bookings_df['time'] < hour_end.time())
+
+    # Convert date strings to datetime objects
+    bookings_df['start_datetime'] = pd.to_datetime(bookings_df['date'].astype(str) + ' ' + bookings_df['time'].astype(str))
+    bookings_df['end_datetime'] = bookings_df['start_datetime'] + timedelta(hours=1)
+
+    # Define the booking time range
+    booking_start = booking_datetime
+    booking_end = booking_start + timedelta(hours=1)
+
+    # Calculate intersecting bookings
+    intersecting_bookings = bookings_df[
+        (bookings_df['start_datetime'] < booking_end) & 
+        (bookings_df['end_datetime'] > booking_start)
     ]
-    
-    booked_places = existing_bookings['places'].sum() if 'places' in existing_bookings.columns else len(existing_bookings)
-    available_places = MAX_BOOKINGS_PER_HOUR - booked_places
-    return max(0, available_places)  # Ensure we don't return a negative number
+
+    # Calculate total places taken in the intersecting time segments
+    total_places_taken = intersecting_bookings['places'].sum()
+
+    # Calculate available places
+    available_places = MAX_BOOKINGS_PER_HOUR - total_places_taken
+
+    return max(0, available_places)  # Ensure we don't return negative values
+
 
 def add_booking(user_id, booking_datetime, places=1):
     global bookings_df
