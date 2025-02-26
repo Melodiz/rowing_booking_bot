@@ -181,9 +181,10 @@ def remove_old_bookings():
     if not bookings:
         return []  # If bookings is empty, just return an empty list
     current_datetime = datetime.now()
+    one_hour_ago = current_datetime - timedelta(hours=1)
     updated_bookings = [
         booking for booking in bookings
-        if datetime.combine(booking['date'], booking['time']) > current_datetime
+        if datetime.combine(booking['date'], booking['time']) > one_hour_ago
     ]
     save_bookings(updated_bookings)
     return updated_bookings
