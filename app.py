@@ -102,13 +102,6 @@ async def rename_command(update: Update, context: CallbackContext):
     else:
         await update.message.reply_text("An error occurred while updating your name. Please try again later.")
 
-# @rate_limit
-# @require_verification
-# async def book_table(update: Update, context: CallbackContext):
-#     """Handle booking requests."""
-#     # The existing book_table logic goes here
-#     # This function is now protected by the @require_verification decorator
-#     await book_table(update, context)
 
 @rate_limit
 @require_verification

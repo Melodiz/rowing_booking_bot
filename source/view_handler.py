@@ -3,6 +3,35 @@ from .data_handler import *
 from datetime import datetime, date, timedelta
 from collections import defaultdict
 from source.user_handler import require_verification
+import re
+
+def parse_date(date_str, current_date):
+    date_patterns = [
+        r'^(\d{2})\.(\d{2})$',  # dd.mm
+        r'^(\d{2})/(\d{2})$',  # dd/mm
+        r'^(\d{2})$'  # dd
+    ]
+
+    for pattern in date_patterns:
+        match = re.match(pattern, date_str)
+        if match:
+            groups = match.groups()
+            if len(groups) == 2:  # dd.mm or dd/mm
+                day, month = map(int, groups)
+                year = current_date.year
+            else:  # dd
+                day = int(groups[0])
+                if day <= 0 or day > 31:
+                    return None
+                target_date = get_target_date(day, current_date)
+                month, year = target_date.month, target_date.year
+
+            try:
+                return datetime(year, month, day).date()
+            except ValueError:
+                return None
+
+    return None
 
 
 def format_bookings(bookings):
@@ -53,28 +82,16 @@ async def view_bookings(update, context):
             return
         grouped_bookings = group_bookings(filtered_bookings, include_date=True)
         message = "Your bookings:\n\n"
+
     elif user_input:
-        try:
-            current_date = datetime.now()
-            if '.' in user_input:
-                # Format: dd.mm
-                target_date = datetime.strptime(f"{user_input}.{current_date.year}", "%d.%m.%Y").date()
-            else:
-                # Format: dd
-                day = int(user_input)
-                target_date = get_target_date(day, current_date)
-
-            filtered_bookings = [b for b in bookings if (b['date'].date() if isinstance(b['date'], datetime) else b['date']) == target_date]
-            
-            if not filtered_bookings:
-                await update.message.reply_text(f"No bookings found for {target_date.strftime('%d.%m')}.")
-                return
-
-            grouped_bookings = group_bookings(filtered_bookings, include_date=False)
-            message = f"Bookings for {target_date.strftime('%d.%m')}:\n\n"
-        except ValueError:
+        target_date = parse_date(user_input, datetime.now().date())
+        if not target_date:
             await update.message.reply_text("Invalid date format. Please use dd.mm or dd")
             return
+        filtered_bookings = [b for b in bookings if (b['date'].date() if isinstance(b['date'], datetime) else b['date']) == target_date]
+        grouped_bookings = group_bookings(filtered_bookings, include_date=False)
+        message = f"Bookings for {target_date.strftime('%d.%m')}:\n\n"
+
     else:
         grouped_bookings = group_bookings(bookings, include_date=True)
         message = "All booked concepts:\n\n"
