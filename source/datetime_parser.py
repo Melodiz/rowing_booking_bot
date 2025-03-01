@@ -1,23 +1,31 @@
 import re
-from datetime import datetime, timedelta
-from .view_handler import get_target_date
+from datetime import datetime, date, timedelta
 
+def get_target_date(day, current_date):
+    """Calculate the target date based on the given day and current date."""
+    if day >= current_date.day:
+        # If the day is in the future, use the current month
+        return date(current_date.year, current_date.month, day)
+    else:
+        # If the day has passed, use the next month
+        next_month = current_date.replace(day=1) + timedelta(days=32)
+        return date(next_month.year, next_month.month, day)
 
 def parse_date(date_str, current_date):
     date_patterns = [
-        r'^(\d{2})\.(\d{2})$',  # dd.mm
-        r'^(\d{2})/(\d{2})$',  # dd/mm
-        r'^(\d{2})$'  # dd
+        r'^(\d{1,2})\.(\d{1,2})$',  # d.m or dd.mm
+        r'^(\d{1,2})/(\d{1,2})$',  # d/m or dd/mm
+        r'^(\d{1,2})$'  # d or dd
     ]
 
     for pattern in date_patterns:
         match = re.match(pattern, date_str)
         if match:
             groups = match.groups()
-            if len(groups) == 2:  # dd.mm or dd/mm
+            if len(groups) == 2:  # d.m, dd.mm, d/m, or dd/mm
                 day, month = map(int, groups)
                 year = current_date.year
-            else:  # dd
+            else:  # d or dd
                 day = int(groups[0])
                 if day <= 0 or day > 31:
                     return None
@@ -30,7 +38,6 @@ def parse_date(date_str, current_date):
                 return None
 
     return None
-
 
 def parse_time(time_str):
     time_patterns = [
@@ -98,3 +105,4 @@ def parse_booking_datetime(message_text):
         return booking_datetime, parsed_amount
 
     return None, None
+
