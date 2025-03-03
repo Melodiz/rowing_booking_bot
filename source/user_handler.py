@@ -42,31 +42,31 @@ def load_password():
 async def verify_user(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if is_user_verified(user_id):
-        await update.message.reply_text("You are already verified.")
+        await update.message.reply_text("Вы уже верифицированы.")
         return
 
     if 'verification_step' not in context.user_data:
         context.user_data['verification_step'] = 'password'
-        await update.message.reply_text("Please enter the verification password:")
+        await update.message.reply_text("Пожалуйста, введите пароль для верификации:")
     elif context.user_data['verification_step'] == 'password':
         if update.message.text == load_password():
             context.user_data['verification_step'] = 'name'
-            await update.message.reply_text("Password correct. Please enter your name:")
+            await update.message.reply_text("Пароль верный. Пожалуйста, введите ваше имя:")
         else:
-            await update.message.reply_text("Incorrect password. Please try again.")
+            await update.message.reply_text("Неверный пароль. Пожалуйста, попробуйте снова.")
     elif context.user_data['verification_step'] == 'name':
         name = update.message.text
         telegram_link = f"https://t.me/{update.effective_user.username}" if update.effective_user.username else ""
         add_user(user_id, name, telegram_link)
         del context.user_data['verification_step']
-        await update.message.reply_text("Verification complete. You can now use the bot.")
+        await update.message.reply_text("Верификация завершена. Теперь вы можете использовать бота.")
 
 # New function to handle verification process
 async def handle_verification(update: Update, context: CallbackContext):
     if 'verification_step' in context.user_data:
         await verify_user(update, context)
     else:
-        await update.message.reply_text("You need to start the verification process. Please use /verify command.")
+        await update.message.reply_text("Вам необходимо начать процесс верификации. Пожалуйста, используйте команду /verify.")
 
 # Decorator to check if user is verified
 def require_verification(func):
@@ -77,5 +77,5 @@ def require_verification(func):
         elif 'verification_step' in context.user_data:
             await handle_verification(update, context)
         else:
-            await update.message.reply_text("You need to be verified to use this command. Please use /verify to start the verification process.")
+            await update.message.reply_text("Для использования этой команды необходима верификация. Пожалуйста, используйте команду /verify для начала процесса верификации.")
     return wrapper

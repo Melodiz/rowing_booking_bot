@@ -55,14 +55,13 @@ async def verify_command(update: Update, context: CallbackContext):
 async def start(update: Update, context: CallbackContext):
     """Sends a welcome message with available commands."""
     await update.message.reply_text(
-        'Welcome! Here are the available commands:\n\n'
-        '/verify - Verify your account\n'
-        '/book - Book a concept\n'
-        '/view - View all booked concepts\n'
-        '/view [date] - View bookings for a specific day (dd.mm, dd/mm, dd)\n'
-        '/my - View your bookings\n'
-        '/delete - Delete your bookings\n'
-        '/rename - Change your name (e.g., /rename John Doe)'
+        'Добро пожаловать! Вот доступные команды:\n\n'
+        '/view - Посмотреть брони всех пользователей\n'
+        '/delete - Отменить свои брони\n'
+        '/my - Посмотреть свои брони\n'
+        '/book - Инструкция по брони концептов\n'
+        '/verify - Подтвердить аккаунт\n'
+        '/rename - задать новое имя пользователя\n'
     )
 
 @rate_limit
@@ -70,19 +69,27 @@ async def start(update: Update, context: CallbackContext):
 async def book_command(update: Update, context: CallbackContext):
     """Provides instructions for booking."""
     await update.message.reply_text(
-        'To book a concept, simply send your booking request in one of these formats:\n\n'
-        'dd.mm hh:mm [number_of_places]\n'
-        'dd.mm hh.mm [number_of_places]\n'
-        'dd.mm hhmm [number_of_places]\n'
-        'dd/mm hh:mm [number_of_places]\n'
-        'dd/mm hh.mm [number_of_places]\n'
-        'dd/mm hhmm [number_of_places]\n\n'
-        'For example:\n'
-        '25.06 19:30\n'
-        '25/06 19:30 2\n'
-        '25 1930 3\n\n'
-        'The number of places is optional. If not specified, it defaults to 1.\n'
-        'Just send your booking request in one of these formats, and I\'ll process it for you!'
+        'Чтобы забронировать концепт, отправьте сообщение в одном из форматов:\n\n'
+        '1️⃣ <b>Полный формат:</b>\n'
+        '   дата время [количество_концептов]\n'
+        '   Примеры: 10.03 15:00 2, 10/03 15:00\n\n'
+        '2️⃣ <b>Только число:</b>\n'
+        '   число время [количество_концептов]\n'
+        '   Пример: 10 15:00 (забронирует концепт на 10-е число текущего или ближайшего месяца)\n\n'
+        '3️⃣ <b>Только время:</b>\n'
+        '   время [количество_концептов]\n'
+        '   Пример: 15:00 2 (забронирует 2 концепта на сегодня в 15:00)\n\n'
+        '<b>Форматы даты:</b>\n'
+        '• дд.мм (10.03)\n'
+        '• дд/мм (10/03)\n'
+        '• дд (10)\n\n'
+        '<b>Форматы времени:</b>\n'
+        '• чч:мм (15:30)\n'
+        '• чч.мм (15.30)\n'
+        '• ччмм (1530)\n\n'
+        'Количество концептов указывать необязательно. По умолчанию будет забронирован 1 концепт.\n\n'
+        'Я автоматически проверю наличие свободных мест и расписание зала, чтобы избежать накладок.',
+        parse_mode='HTML'
     )
 
 @rate_limit
@@ -92,16 +99,17 @@ async def rename_command(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     
     if len(context.args) == 0:
-        await update.message.reply_text("Please provide your new name after the /rename command. For example: /rename John Doe")
+        await update.message.reply_text("Пожалуйста, укажите ваше новое имя после команды /rename. Например: /rename Иванов")
         return
     
     new_name = ' '.join(context.args)
     
     if rename_user(user_id, new_name):
-        await update.message.reply_text(f"Your name has been updated to: {new_name}")
+        await update.message.reply_text(f"Ваше имя было обновлено на: {new_name}")
     else:
-        await update.message.reply_text("An error occurred while updating your name. Please try again later.")
-
+        await update.message.reply_text(
+            "Произошла ошибка при обновлении вашего имени. Пожалуйста, попробуйте позже.\n"
+            "Если проблема не пройдет, пожалуйста, напиши моему автору: @Mellodizzz")
 
 @rate_limit
 @require_verification
@@ -118,15 +126,16 @@ async def my_bookings(update: Update, context: CallbackContext):
     user_bookings = get_user_bookings(user_id)
     
     if not user_bookings:
-        await update.message.reply_text("You don't have any bookings.")
+        await update.message.reply_text("У вас нет актуальных броней.")
         return
 
     formatted_bookings = format_bookings(user_bookings)
-    await update.message.reply_text(f"Your bookings:\n{formatted_bookings}")
+    await update.message.reply_text(f"Ваши бронирования:\n{formatted_bookings}")
 
 async def error_handler(update: object, context: CallbackContext) -> None:
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, context.error)
+
 
 @rate_limit
 @require_verification
@@ -134,16 +143,14 @@ async def toggle_message_saving(update: Update, context: CallbackContext):
     """Toggle message saving on or off."""
     global SAVE_MESSAGES
     SAVE_MESSAGES = not SAVE_MESSAGES
-    status = "enabled" if SAVE_MESSAGES else "disabled"
-    await update.message.reply_text(f"Message saving is now {status}.")
+    status = "включено" if SAVE_MESSAGES else "отключено"
+    await update.message.reply_text(f"Сохранение сообщений теперь {status}.")
 
 @rate_limit
 @require_verification
 async def handle_booking_message(update: Update, context: CallbackContext):
     """Handle booking messages."""
     await process_booking_request(update, context)
-
-import re
 
 async def handle_message(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -154,19 +161,20 @@ async def handle_message(update: Update, context: CallbackContext):
         if re.match(booking_pattern, update.message.text):
             await handle_booking_message(update, context)
         else:
-            await update.message.reply_text("I'm sorry, I didn't understand that command. Use /help to see available commands.")
+            await update.message.reply_text("Извините, я не понял эту команду. Используйте /help, чтобы увидеть доступные команды.")
     else:
         await handle_verification(update, context)
+
 
 async def log_message(update: Update, context: CallbackContext) -> None:
     """Log the user's message with timestamp and optionally save to JSON."""
     user = update.effective_user
     message = update.message
     timestamp = datetime.now()
-    
+
     # Log to console/file
     logger.info(f"[{timestamp.strftime('%Y-%m-%d %H:%M:%S')}] User {user.id} ({user.username}) sent: '{message.text}'")
-    
+
     # Save to JSON if the flag is set
     if SAVE_MESSAGES:
         save_message_to_json(user.id, user.username, message.text, timestamp)
