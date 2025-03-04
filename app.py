@@ -156,8 +156,7 @@ async def handle_message(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if is_user_verified(user_id):
         # Comprehensive regex pattern to match all supported booking formats
-        booking_pattern = r'^(\d{1,2}([./])\d{1,2}(\2|\s)\d{2}[:.]?\d{2}|\d{1,2}\s\d{2}[:.]?\d{2}|\d{4})(\s+\d+)?$'
-        
+        booking_pattern = r'^(\d{1,2}([./])\d{1,2}(\2|\s)\d{2}[:.]?\d{2}|\d{1,2}\s\d{2}[:.]?\d{2}|\d{4}|\d{1,2}[:]\d{2}|\d{1,2}[.]\d{2})(\s+\d+)?$'        
         if re.match(booking_pattern, update.message.text):
             await handle_booking_message(update, context)
         else:
