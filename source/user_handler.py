@@ -51,7 +51,11 @@ async def verify_user(update: Update, context: CallbackContext):
     elif context.user_data['verification_step'] == 'password':
         if update.message.text == load_password():
             context.user_data['verification_step'] = 'name'
-            await update.message.reply_text("Пароль верный. Пожалуйста, введите ваше имя:")
+            await update.message.reply_text(
+                "Пароль верный. Пожалуйста, введите ваше имя:\n"
+                "Совутую поставить Фамилию, или Имя и Фамилию, пожалуйста,"
+                "давайте без имён по типу 'kkk', 'sigma', 'hot girl':)"
+                )
         else:
             await update.message.reply_text("Неверный пароль. Пожалуйста, попробуйте снова.")
     elif context.user_data['verification_step'] == 'name':

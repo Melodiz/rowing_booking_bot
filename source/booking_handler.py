@@ -16,7 +16,6 @@ async def process_booking_request(update: Update, context: CallbackContext):
     # Check if the user is verified
     if not is_user_verified(user_id):
         await update.message.reply_text(
-            "You need to be verified to book a concept. Please use the /verify command."
             "Вам необходимо пройти верификацию. Используйте команду /verify."
             )
         return
