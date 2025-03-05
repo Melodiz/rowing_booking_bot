@@ -93,18 +93,51 @@ def get_available_places(booking_datetime):
     booking_start = booking_datetime
     booking_end = booking_start + timedelta(hours=1)
 
-    # Calculate intersecting bookings
-    intersecting_bookings = bookings_df[
+    # Find all bookings that overlap with our requested time slot
+    overlapping_bookings = bookings_df[
         (bookings_df['start_datetime'] < booking_end) & 
         (bookings_df['end_datetime'] > booking_start)
     ]
-
-    # Calculate total places taken in the intersecting time segments
-    total_places_taken = intersecting_bookings['places'].sum()
-
-    # Calculate available places
-    available_places = MAX_BOOKINGS_PER_HOUR - total_places_taken
-
+    
+    if overlapping_bookings.empty:
+        return MAX_BOOKINGS_PER_HOUR
+    
+    # Create a list of all time points where occupancy changes
+    critical_times = []
+    for _, booking in overlapping_bookings.iterrows():
+        # Only consider critical times within our booking window
+        if booking['start_datetime'] >= booking_start and booking['start_datetime'] < booking_end:
+            critical_times.append((booking['start_datetime'], booking['places']))
+        if booking['end_datetime'] > booking_start and booking['end_datetime'] <= booking_end:
+            critical_times.append((booking['end_datetime'], -booking['places']))  # Negative because places are freed
+    
+    # Add the booking start and end times if they're not already included
+    critical_times.append((booking_start, 0))
+    critical_times.append((booking_end, 0))
+    
+    # Sort by time
+    critical_times.sort()
+    
+    # Calculate maximum occupancy during the requested time slot
+    current_occupancy = 0
+    max_occupancy = 0
+    
+    # First, calculate occupancy at booking_start from existing bookings
+    for _, booking in overlapping_bookings.iterrows():
+        if booking['start_datetime'] <= booking_start and booking['end_datetime'] > booking_start:
+            current_occupancy += booking['places']
+    
+    max_occupancy = current_occupancy
+    
+    # Then process all critical points to find maximum occupancy
+    for time, change in critical_times:
+        if time > booking_start:  # Skip the initial state we already calculated
+            current_occupancy += change
+            max_occupancy = max(max_occupancy, current_occupancy)
+    
+    # Calculate available places based on maximum occupancy
+    available_places = MAX_BOOKINGS_PER_HOUR - max_occupancy
+    
     return max(0, available_places)  # Ensure we don't return negative values
 
 
