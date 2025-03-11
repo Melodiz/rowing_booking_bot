@@ -1,13 +1,13 @@
 import logging
 import asyncio
 from datetime import datetime
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 from source.data_handler import get_token, load_bookings, save_message_to_json, get_user_bookings
 from source.booking_handler import handle_booking_response, process_booking_request
 from source.view_handler import view_bookings, format_bookings
 from source.delete_handler import delete_bookings, setup_delete_handlers
 from telegram.ext import CallbackContext, CommandHandler, MessageHandler, filters, Application
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from functools import wraps
 from source.user_handler import *
 import re
@@ -53,7 +53,13 @@ async def verify_command(update: Update, context: CallbackContext):
 @rate_limit
 @require_verification
 async def start(update: Update, context: CallbackContext):
-    """Sends a welcome message with available commands."""
+    """Sends a welcome message with available commands and shows persistent keyboard."""
+    # Create a keyboard with only View and Delete buttons
+    keyboard = [
+        [KeyboardButton("/view"), KeyboardButton("/delete")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
     await update.message.reply_text(
         'Добро пожаловать! Вот доступные команды:\n\n'
         '/view - Посмотреть брони всех пользователей\n'
@@ -61,7 +67,8 @@ async def start(update: Update, context: CallbackContext):
         '/my - Посмотреть свои брони\n'
         '/book - Инструкция по брони концептов\n'
         '/verify - Подтвердить аккаунт\n'
-        '/rename - задать новое имя пользователя\n'
+        '/rename - задать новое имя пользователя\n',
+        reply_markup=reply_markup
     )
 
 @rate_limit
@@ -152,6 +159,36 @@ async def handle_booking_message(update: Update, context: CallbackContext):
     """Handle booking messages."""
     await process_booking_request(update, context)
 
+
+@rate_limit
+@require_verification
+async def show_buttons(update: Update, context: CallbackContext):
+    """Show buttons for view and delete commands as persistent keyboard."""
+    keyboard = [
+        [KeyboardButton("/view"), KeyboardButton("/delete")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text('Выберите действие:', reply_markup=reply_markup)
+
+    
+async def button_callback(update: Update, context: CallbackContext):
+    """Handle button callbacks."""
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data == "view":
+        # Create a new update object with the original message but modified text
+        new_update = Update(update.update_id, message=update.callback_query.message)
+        new_update.message.text = "/view"
+        new_update.message.from_user = update.callback_query.from_user
+        await view_bookings(new_update, context)
+    elif query.data == "delete":
+        # Create a new update object with the original message but modified text
+        new_update = Update(update.update_id, message=update.callback_query.message)
+        new_update.message.text = "/delete"
+        new_update.message.from_user = update.callback_query.from_user
+        await delete_bookings(new_update, context)
+
 async def handle_message(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if is_user_verified(user_id):
@@ -192,6 +229,10 @@ def main() -> None:
     application.add_handler(CommandHandler("view", view_bookings))
     application.add_handler(CommandHandler("my", view_bookings))
     application.add_handler(CommandHandler("rename", rename_command))
+    application.add_handler(CommandHandler("buttons", show_buttons))  # Add the new command
+
+    # Add callback query handler for buttons
+    application.add_handler(CallbackQueryHandler(button_callback))
 
     # Add handler for booking response
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^(yes|no|Yes|No|NO)$'), handle_booking_response))
