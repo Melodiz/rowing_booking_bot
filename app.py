@@ -188,6 +188,7 @@ async def button_callback(update: Update, context: CallbackContext):
         new_update.message.text = "/delete"
         new_update.message.from_user = update.callback_query.from_user
         await delete_bookings(new_update, context)
+    # Remove any handling of "delete_" prefixed callbacks here, as they're handled by delete_booking_callback
 
 async def handle_message(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -231,8 +232,11 @@ def main() -> None:
     application.add_handler(CommandHandler("rename", rename_command))
     application.add_handler(CommandHandler("buttons", show_buttons))  # Add the new command
 
-    # Add callback query handler for buttons
-    application.add_handler(CallbackQueryHandler(button_callback))
+    # Set up delete handlers first (to handle delete_ callbacks)
+    setup_delete_handlers(application)
+
+    # Add callback query handler for view and delete buttons (but not delete_ callbacks)
+    application.add_handler(CallbackQueryHandler(button_callback, pattern='^(?!delete_).*$'))
 
     # Add handler for booking response
     application.add_handler(MessageHandler(filters.TEXT & filters.Regex(r'^(yes|no|Yes|No|NO)$'), handle_booking_response))
@@ -245,9 +249,6 @@ def main() -> None:
 
     # Add message logging
     application.add_handler(MessageHandler(filters.TEXT, log_message), group=42)
-
-    # Set up delete handlers
-    setup_delete_handlers(application)
 
     # Start the Bot
     application.run_polling(allowed_updates=Update.ALL_TYPES)
