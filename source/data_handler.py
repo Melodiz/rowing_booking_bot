@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, date, time
 import os
 
 BOOKINGS_FILE = 'bookings.json'
-bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places'])
+bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places', 'duration'])
 
 # Maximum number of bookings per hour
 MAX_BOOKINGS_PER_HOUR = 6
@@ -36,20 +36,26 @@ def load_bookings():
                 bookings_df = pd.DataFrame(bookings_data)
                 bookings_df['date'] = pd.to_datetime(bookings_df['date']).dt.date
                 bookings_df['time'] = pd.to_datetime(bookings_df['time'], format='%H:%M:%S').dt.time
+                # Ensure duration column exists, default to 60 minutes if not present
+                if 'duration' not in bookings_df.columns:
+                    bookings_df['duration'] = 60
             else:
-                bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places'])
+                bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places', 'duration'])
     except FileNotFoundError:
         logging.info("Bookings file not found. Starting with an empty DataFrame.")
-        bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places'])
+        bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places', 'duration'])
     except json.JSONDecodeError:
         logging.error("Error decoding JSON from bookings file. Starting with an empty DataFrame.")
-        bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places'])
+        bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places', 'duration'])
 
 
 def save_bookings(updated_bookings=None):
     global bookings_df
     if updated_bookings is not None:
         bookings_df = pd.DataFrame(updated_bookings)
+        # Ensure duration column exists
+        if 'duration' not in bookings_df.columns:
+            bookings_df['duration'] = 60
     
     # Convert date and time objects to strings
     bookings_data = bookings_df.to_dict('records')
@@ -63,23 +69,31 @@ def save_bookings(updated_bookings=None):
         json.dump(bookings_data, file, default=str)
 
 
-def add_booking(user_id, booking_datetime):
+def add_booking(user_id, booking_datetime, places=1, duration=60):
     global bookings_df
+    available_places = get_available_places(booking_datetime, duration)
+    
+    if available_places < places:
+        return False  # Not enough space available
+    
     new_booking = pd.DataFrame({
         'user_id': [user_id],
         'date': [booking_datetime.date()],
-        'time': [booking_datetime.time()]
+        'time': [booking_datetime.time()], 
+        'places': [places], 
+        'duration': [duration]
     })
     bookings_df = pd.concat([bookings_df, new_booking], ignore_index=True)
     save_bookings()
+    return True
 
 
-def is_space_available(booking_datetime):
-    available_places = get_available_places(booking_datetime)
+def is_space_available(booking_datetime, duration=60):
+    available_places = get_available_places(booking_datetime, duration)
     return available_places > 0
 
 
-def get_available_places(booking_datetime):
+def get_available_places(booking_datetime, duration=60):
     remove_old_bookings()
     global bookings_df
     if bookings_df.empty:
@@ -87,11 +101,20 @@ def get_available_places(booking_datetime):
 
     # Convert date strings to datetime objects
     bookings_df['start_datetime'] = pd.to_datetime(bookings_df['date'].astype(str) + ' ' + bookings_df['time'].astype(str))
-    bookings_df['end_datetime'] = bookings_df['start_datetime'] + timedelta(hours=1)
+    
+    # Ensure duration column exists
+    if 'duration' not in bookings_df.columns:
+        bookings_df['duration'] = 60
+    
+    # Calculate end datetime based on duration
+    bookings_df['end_datetime'] = bookings_df.apply(
+        lambda row: row['start_datetime'] + timedelta(minutes=row['duration']), 
+        axis=1
+    )
 
     # Define the booking time range
     booking_start = booking_datetime
-    booking_end = booking_start + timedelta(hours=1)
+    booking_end = booking_start + timedelta(minutes=duration)
 
     # Find all bookings that overlap with our requested time slot
     overlapping_bookings = bookings_df[
@@ -140,24 +163,6 @@ def get_available_places(booking_datetime):
     
     return max(0, available_places)  # Ensure we don't return negative values
 
-
-def add_booking(user_id, booking_datetime, places=1):
-    global bookings_df
-    available_places = get_available_places(booking_datetime)
-    
-    if available_places < places:
-        return False  # Not enough space available
-    
-    new_booking = pd.DataFrame({
-        'user_id': [user_id],
-        'date': [booking_datetime.date()],
-        'time': [booking_datetime.time()],  # Use the exact time without rounding
-        'places': [places]
-    })
-    bookings_df = pd.concat([bookings_df, new_booking], ignore_index=True)
-    save_bookings()
-    return True
-
 def get_all_bookings():
     try:
         with open('bookings.json', 'r') as f:
@@ -171,6 +176,9 @@ def get_all_bookings():
         for booking in bookings:
             booking['date'] = datetime.strptime(booking['date'], '%Y-%m-%d').date()
             booking['time'] = datetime.strptime(booking['time'], '%H:%M:%S').time()
+            # Ensure duration exists
+            if 'duration' not in booking:
+                booking['duration'] = 60
         
         return bookings
     except FileNotFoundError:

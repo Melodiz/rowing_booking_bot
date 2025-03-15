@@ -61,7 +61,6 @@ def parse_time(time_str):
 
     return None
 
-
 def parse_amount(amount_str):
     try:
         return int(amount_str)
@@ -73,12 +72,12 @@ def parse_booking_datetime(message_text):
     current_date = datetime.now().date()
     parts = message_text.split()
     if len(parts) < 1:
-        return None, None
+        return None, None, None
     if len(parts) == 1:
         parsed_time = parse_time(parts[0])
         if parsed_time is None:
             return None, None
-        return datetime.combine(current_date, parsed_time), 1
+        return datetime.combine(current_date, parsed_time), 1, 60
     if len(parts) == 2:
         if (len(parts[0]) >= 4 and len(parts[1]) == 1):
             parsed_time = parse_time(parts[0])
@@ -88,13 +87,13 @@ def parse_booking_datetime(message_text):
                 current_date, parsed_time)
             parsed_amount = parse_amount(parts[1])
             if parsed_amount <= 0: return None, None
-            return booking_datetime, parsed_amount
+            return booking_datetime, parsed_amount, 60
         else:
             parsed_date = parse_date(parts[0], current_date)
             parsed_time = parse_time(parts[1])
             if parsed_date is None or parsed_time is None:
                 return None, None
-            return datetime.combine(parsed_date, parsed_time), 1
+            return datetime.combine(parsed_date, parsed_time), 1, 60
     if len(parts) == 3:
         parsed_time = parse_time(parts[1])
         parsed_amount = parse_amount(parts[2])
@@ -102,7 +101,16 @@ def parse_booking_datetime(message_text):
         if parsed_time is None or parsed_amount <= 0 or parsed_date is None:
             return None, None
         booking_datetime = datetime.combine(parsed_date, parsed_time)
-        return booking_datetime, parsed_amount
+        return booking_datetime, parsed_amount, 60
+    if len(parts) == 4:
+        parsed_time = parse_time(parts[1])
+        parsed_amount = parse_amount(parts[2])
+        parsed_date = parse_date(parts[0], current_date)
+        length_in_minutes = int(parts[3])
+        if parsed_time is None or parsed_amount <= 0 or parsed_date is None or length_in_minutes <= 0:
+            return None, None
+        booking_datetime = datetime.combine(parsed_date, parsed_time)
+        return booking_datetime, parsed_amount, length_in_minutes
 
-    return None, None
+    return None, None, None
 

@@ -6,7 +6,7 @@ from source.user_handler import require_verification
 import re
 
 # Dictionary to map English day names to Russian day names
-WEEKDAY_TRANSLATION = {
+WEEKDAY_TRANSLATION_LONG = {
     'Monday': 'Понедельник',
     'Tuesday': 'Вторник',
     'Wednesday': 'Среда',
@@ -16,12 +16,29 @@ WEEKDAY_TRANSLATION = {
     'Sunday': 'Воскресенье'
 }
 
-def translate_date_string(date_str):
+WEEKDAY_TRANSLATION_SHORT = {
+    'Monday': 'Пн',
+    'Tuesday': 'Вт',
+    'Wednesday': 'Ср',
+    'Thursday': 'Чт',
+    'Friday': 'Пт',
+    'Saturday': 'Сб',
+    'Sunday': 'Вск'
+}
+
+def translate_date_string(date_str, short=False):
     """Translate day names in date strings from English to Russian."""
-    for eng, rus in WEEKDAY_TRANSLATION.items():
-        if eng in date_str:
-            return date_str.replace(eng, rus)
-    return date_str
+    if not short:
+        for eng, rus in WEEKDAY_TRANSLATION_LONG.items():
+            if eng in date_str:
+                return date_str.replace(eng, rus)
+        return date_str
+    else:
+        for eng, rus in WEEKDAY_TRANSLATION_SHORT.items():
+            if eng in date_str:
+                return date_str.replace(eng, rus)
+        return date_str
+
 
 def get_concept_form(count):
     """Return the correct grammatical form of the word 'концепт' based on count."""
@@ -87,6 +104,7 @@ def format_bookings(bookings):
             output.append(f"  {time_str} {count} {concept_str}")
 
     return "\n".join(output)
+
 @require_verification
 async def view_bookings(update, context):
     """Shows all booked concepts or bookings for a specific day or user, grouped by time and users."""
@@ -129,19 +147,26 @@ async def view_bookings(update, context):
 
     for date_str in sorted_dates:
         message += f"{date_str}\n"
-        for time_slot, users in grouped_bookings[date_str].items():
+        for time_range, users in grouped_bookings[date_str].items():
             if is_my_command:
                 # For /my command, we only need to show the user's own bookings
                 user_info = users.get(get_user_name(user_id), {'count': 0, 'link': ''})
                 if user_info['count'] > 0:
-                    message += f"{time_slot}: {user_info['count']} {get_concept_form(user_info['count'])}\n"
+                    message += f"{time_range}: {user_info['count']} {get_concept_form(user_info['count'])}\n"
             else:
                 total_count = sum(user_info['count'] for user_info in users.values())
-                user_str = ", ".join(f"{user_info['count']}x <a href='{user_info['link']}'>{name}</a>" if user_info['link'] else f"{user_info['count']}x {name}" for name, user_info in users.items())
-                message += f"{time_slot}: {total_count} {get_concept_form(total_count)} ({user_str})\n"
+                user_str_parts = []
+                for name, user_info in users.items():
+                    if user_info['link']:
+                        user_str_parts.append(f"{user_info['count']}x <a href='{user_info['link']}'>{name}</a>")
+                    else:
+                        user_str_parts.append(f"{user_info['count']}x {name}")
+                user_str = ", ".join(user_str_parts)
+                message += f"{time_range}: {total_count} {get_concept_form(total_count)} ({user_str})\n"
         message += "\n"
 
     await update.message.reply_text(message, parse_mode='HTML', disable_web_page_preview=True)
+
 def get_target_date(day, current_date):
     """Calculate the target date based on the given day and current date."""
     if day >= current_date.day:
@@ -153,27 +178,40 @@ def get_target_date(day, current_date):
         return date(next_month.year, next_month.month, day)
 
 def group_bookings(bookings, include_date=True):
-    """Group bookings by date and time, returning a count for each slot with user information."""
+    """Group bookings by date and time range, returning a count for each slot with user information."""
     user_data = get_user_data()
+    
     if include_date:
         grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'count': 0, 'link': ''})))
         for booking in bookings:
             date_str = booking['date'].strftime('%d/%m (%A)')
             date_str = translate_date_string(date_str)  # Translate day name to Russian
-            time_str = booking['time'].strftime('%H:%M')
+            
+            start_time = booking['time']
+            duration = booking.get('duration', 60)  # Default to 60 minutes if 'duration' is not present
+            end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+            time_range = f"{start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')}"
+            
             user_name, user_link = user_data.get(booking['user_id'], ('Неопознанная Капибара', ''))
             places = booking.get('places', 1)  # Default to 1 if 'places' is not present
-            grouped[date_str][time_str][user_name]['count'] += places
-            grouped[date_str][time_str][user_name]['link'] = user_link
+            
+            grouped[date_str][time_range][user_name]['count'] += places
+            grouped[date_str][time_range][user_name]['link'] = user_link
+            
         return {date: {time: dict(users) for time, users in sorted(time_slots.items())} 
                 for date, time_slots in grouped.items()}
     else:
         grouped = defaultdict(lambda: defaultdict(lambda: {'count': 0, 'link': ''}))
         for booking in bookings:
-            time_str = booking['time'].strftime('%H:%M')
+            start_time = booking['time']
+            duration = booking.get('duration', 60)  # Default to 60 minutes if 'duration' is not present
+            end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+            time_range = f"{start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')}"
+            
             user_name, user_link = user_data.get(booking['user_id'], ('Неопознанная Капибара', ''))
             places = booking.get('places', 1)  # Default to 1 if 'places' is not present
-            grouped[time_str][user_name]['count'] += places
-            grouped[time_str][user_name]['link'] = user_link
-        print(f'\n\n\n { {time: dict(users) for time, users in sorted(grouped.items())}}\n\n\n')
+            
+            grouped[time_range][user_name]['count'] += places
+            grouped[time_range][user_name]['link'] = user_link
+            
         return {time: dict(users) for time, users in sorted(grouped.items())}
