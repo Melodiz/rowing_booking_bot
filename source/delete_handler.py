@@ -42,9 +42,7 @@ async def delete_bookings(update: Update, context: CallbackContext):
         
         # Include duration in the button text
         end_time = (booking_datetime + timedelta(minutes=duration)).strftime('%H:%M')
-        # button_text = f"{date_str} {time_str}-{end_time} ({duration} мин.) - {places_count} {get_concept_form(places_count)}"
         button_text = f"{date_str} {time_str}-{end_time} - {places_count}x"
-        print('\n\n', button_text, '\n\n')
 
         # Include duration in the callback data
         callback_data = f"delete_{booking_datetime.strftime('%Y-%m-%d_%H:%M:%S')}_{duration}"
