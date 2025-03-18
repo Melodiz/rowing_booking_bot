@@ -389,7 +389,7 @@ def upload_to_yandex(file_path, yandex_token_path='ya_token.json'):
         # Step 1: Get upload URL
         get_url_api = 'https://cloud-api.yandex.net/v1/disk/resources/upload'
         params = {
-            'path': f'/reports/{filename}',  # Upload to reports folder on Yandex Disk
+            'path': f'/reports_test/{filename}',  # Upload to reports folder on Yandex Disk
             'overwrite': 'true'
         }
 

@@ -1,0 +1,10 @@
+2025-03-18 23:33:08,455 - __main__ - INFO - Starting bot application
+2025-03-18 23:33:08,542 - __main__ - INFO - Bot handlers configured, starting polling
+2025-03-18 23:33:08,741 - apscheduler.scheduler - INFO - Scheduler started
+2025-03-18 23:33:19,343 - __main__ - INFO - [2025-03-18 23:33:19] User 786487499 (Mellodizzz) sent: '/view'
+2025-03-18 23:33:22,145 - source.delete_handler - INFO - User 786487499 (Mellodizzz) requested to delete bookings
+2025-03-18 23:33:22,146 - source.delete_handler - INFO - Showing delete options to user 786487499 (Mellodizzz) for 1 booking groups
+2025-03-18 23:33:22,288 - __main__ - INFO - [2025-03-18 23:33:22] User 786487499 (Mellodizzz) sent: '/delete'
+2025-03-18 23:33:24,119 - source.delete_handler - INFO - User 786487499 (Mellodizzz) is deleting booking for 2025-03-19 20:00:00 with duration 60 minutes
+2025-03-18 23:33:24,125 - source.delete_handler - INFO - DELETION: User 786487499 (Mellodizzz) deleted booking for 19/03 (Среда) 20:00-21:00, duration: 60 min., places: 1, total bookings deleted: 1
+2025-03-18 23:33:39,368 - __main__ - INFO - [2025-03-18 23:33:39] User 786487499 (Mellodizzz) sent: '19 2000'

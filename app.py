@@ -1,4 +1,3 @@
-import logging
 import asyncio
 from datetime import datetime
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler
@@ -10,18 +9,15 @@ from telegram.ext import CallbackContext, CommandHandler, MessageHandler, filter
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from functools import wraps
 from source.user_handler import *
+from source.log_handler import setup_logging, get_logger
 import re
 
 
 SAVE_MESSAGES = True 
 
-# Enable logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-
-logger = logging.getLogger(__name__)
+# Set up logging
+logger = setup_logging()
+app_logger = get_logger(__name__)
 
 TOKEN = get_token()
 
@@ -73,8 +69,6 @@ async def start(update: Update, context: CallbackContext):
 
 @rate_limit
 @require_verification
-@rate_limit
-@require_verification
 async def book_command(update: Update, context: CallbackContext):
     """Provides instructions for booking."""
     await update.message.reply_text(
@@ -101,6 +95,7 @@ async def book_command(update: Update, context: CallbackContext):
         'Система автоматически проверит наличие свободных мест и расписание зала.',
         parse_mode='HTML'
     )
+
 @rate_limit
 @require_verification
 async def rename_command(update: Update, context: CallbackContext):
@@ -143,8 +138,7 @@ async def my_bookings(update: Update, context: CallbackContext):
 
 async def error_handler(update: object, context: CallbackContext) -> None:
     """Log Errors caused by Updates."""
-    logger.warning('Update "%s" caused error "%s"', update, context.error)
-
+    app_logger.warning('Update "%s" caused error "%s"', update, context.error)
 
 @rate_limit
 @require_verification
@@ -161,7 +155,6 @@ async def handle_booking_message(update: Update, context: CallbackContext):
     """Handle booking messages."""
     await process_booking_request(update, context)
 
-
 @rate_limit
 @require_verification
 async def show_buttons(update: Update, context: CallbackContext):
@@ -172,7 +165,7 @@ async def show_buttons(update: Update, context: CallbackContext):
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text('Выберите действие:', reply_markup=reply_markup)
 
-    
+
 async def button_callback(update: Update, context: CallbackContext):
     """Handle button callbacks."""
     query = update.callback_query
@@ -206,13 +199,14 @@ async def log_message(update: Update, context: CallbackContext) -> None:
     timestamp = datetime.now()
 
     # Log to console/file
-    logger.info(f"[{timestamp.strftime('%Y-%m-%d %H:%M:%S')}] User {user.id} ({user.username}) sent: '{message.text}'")
+    app_logger.info(f"[{timestamp.strftime('%Y-%m-%d %H:%M:%S')}] User {user.id} ({user.username}) sent: '{message.text}'")
 
     # Save to JSON if the flag is set
     if SAVE_MESSAGES:
         save_message_to_json(user.id, user.username, message.text, timestamp)
 
 def main() -> None:
+    app_logger.info("Starting bot application")
     init_db()
 
     application = Application.builder().token(TOKEN).build()
@@ -246,6 +240,7 @@ def main() -> None:
     # Add message logging
     application.add_handler(MessageHandler(filters.TEXT, log_message), group=42)
 
+    app_logger.info("Bot handlers configured, starting polling")
     # Start the Bot
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 

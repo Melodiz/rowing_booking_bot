@@ -5,8 +5,9 @@ from .datetime_parser import parse_booking_datetime
 from .user_handler import is_user_verified
 from telegram.ext import CallbackContext
 from telegram import Update
+from source.log_handler import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 MAX_BOOKINGS_PER_HOUR = 6
 
 async def process_booking_request(update: Update, context: CallbackContext):
