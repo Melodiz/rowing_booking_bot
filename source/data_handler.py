@@ -3,6 +3,8 @@ import json
 import logging
 from datetime import datetime, timedelta, date, time
 import os
+import requests
+
 
 BOOKINGS_FILE = 'bookings.json'
 bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places', 'duration'])
@@ -268,43 +270,167 @@ def add_report(booking):
     report_dir = "reports"
     if not os.path.exists(report_dir):
         os.makedirs(report_dir)
-    
+
     user_data = get_user_data()
     user_id = booking['user_id']
-    
+
     # Format time range
     booking_time = booking['time']
     duration = booking.get('duration', 60)
     start_datetime = datetime.combine(booking['date'], booking_time)
     end_datetime = start_datetime + timedelta(minutes=duration)
     time_range = f"{booking_time.strftime('%H:%M')}-{end_datetime.strftime('%H:%M')}"
-    
+
     # Get user info
     if user_id in user_data:
         name, telegram_link = user_data[user_id]
         user_info = f"{name} ({telegram_link})"
     else:
         user_info = f"User ID: {user_id}"
-    
+
     # Format places and duration
     places = booking.get('places', 1)
-    
+
     # Create the formatted entry
     entry = f"- {time_range}: {user_info} - {places} places, {duration} min\n"
-    
+
     # Prepare file path
     booking_day = booking['date'].strftime('%Y-%m-%d')
     formatted_date = booking['date'].strftime('%d.%m.%Y')
     filename = f"{report_dir}/{booking_day}.txt"
-    
+
     # Check if file exists
     file_exists = os.path.isfile(filename)
+
+    # If we're creating a new file, upload the previous day's report
+    if not file_exists:
+        # Find the most recent report file that's older than the current booking date
+        try:
+            # Get all report files
+            report_files = [f for f in os.listdir(report_dir) if f.endswith('.txt')]
+
+            # Filter files that are older than the current booking date
+            booking_date = booking['date']
+            older_reports = []
+
+            for report_file in report_files:
+                # Extract date from filename (format: YYYY-MM-DD.txt)
+                file_date_str = report_file.split('.')[0]
+                try:
+                    file_date = datetime.strptime(file_date_str, '%Y-%m-%d').date()
+                    if file_date < booking_date:
+                        older_reports.append((file_date, report_file))
+                except ValueError:
+                    # Skip files with invalid date format
+                    continue
+
+            # Sort by date (newest first)
+            older_reports.sort(reverse=True)
+
+            # Upload the most recent older report if it exists
+            if older_reports:
+                most_recent_report = older_reports[0][1]
+                report_path = os.path.join(report_dir, most_recent_report)
+                logging.info(f"Uploading previous report: {report_path}")
+                upload_to_yandex(report_path)
+        except Exception as e:
+            logging.error(f"Error while trying to upload previous report: {e}")
     
-    # Open file in append mode
-    with open(filename, 'a') as f:
+    # Open file in append mode with UTF-8 encoding
+    with open(filename, 'a', encoding='utf-8') as f:
         # If file is new, add header
         if not file_exists:
             f.write(f"Report on {formatted_date}\n\n")
-        
+
         # Write the booking entry
         f.write(entry)
+
+def upload_to_yandex(file_path, yandex_token_path='ya_token.json'):
+    """
+    Upload a file to Yandex Disk.
+
+    Args:
+        file_path (str): Path to the file to upload
+        yandex_token_path (str): Path to the file containing Yandex Disk OAuth token
+
+    Returns:
+        bool: True if upload was successful, False otherwise
+    """    
+    try:
+        # Read the Yandex Disk OAuth token from JSON file
+        with open(yandex_token_path, 'r') as token_file:
+            token_data = json.load(token_file)
+
+        # Extract the token from the JSON structure
+        if isinstance(token_data, dict) and 'yandex_token' in token_data:
+            token = token_data['yandex_token']
+        else:
+            # If it's not a dict with 'yandex_token' key, try using it directly
+            token = token_data
+
+        if not token or not isinstance(token, str):
+            logging.error("Invalid Yandex Disk token format")
+            return False
+
+        # Check if file exists
+        if not os.path.isfile(file_path):
+            logging.error(f"File not found: {file_path}")
+            return False
+
+        # Get filename from path
+        filename = os.path.basename(file_path)
+
+        # Prepare headers with OAuth token
+        headers = {
+            'Authorization': f'OAuth {token}',
+            'Content-Type': 'application/json'
+        }
+
+        # Step 1: Get upload URL
+        get_url_api = 'https://cloud-api.yandex.net/v1/disk/resources/upload'
+        params = {
+            'path': f'/reports/{filename}',  # Upload to reports folder on Yandex Disk
+            'overwrite': 'true'
+        }
+
+        response = requests.get(get_url_api, headers=headers, params=params)
+
+        if response.status_code != 200:
+            logging.error(f"Failed to get upload URL: {response.text}")
+            return False
+
+        # Extract the upload URL
+        upload_url = response.json().get('href')
+
+        if not upload_url:
+            logging.error("No upload URL received from Yandex Disk API")
+            return False
+
+        # Step 2: Upload the file
+        with open(file_path, 'rb') as file_to_upload:
+            # Use binary mode for file upload to avoid encoding issues
+            upload_response = requests.put(
+                upload_url, 
+                data=file_to_upload,
+                headers={'Content-Type': 'text/plain; charset=utf-8'}  # Specify UTF-8 encoding
+            )
+
+        if upload_response.status_code == 201 or upload_response.status_code == 200:
+            logging.info(f"Successfully uploaded {filename} to Yandex Disk")
+            return True
+        else:
+            logging.error(f"Failed to upload file: {upload_response.text}")
+            return False
+
+    except FileNotFoundError as e:
+        logging.error(f"File not found: {e}")
+        return False
+    except json.JSONDecodeError as e:
+        logging.error(f"Error parsing JSON response: {e}")
+        return False
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Request error: {e}")
+        return False
+    except Exception as e:
+        logging.error(f"Unexpected error during Yandex Disk upload: {e}")
+        return False
