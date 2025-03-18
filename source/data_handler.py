@@ -221,12 +221,22 @@ def remove_old_bookings():
     bookings = get_all_bookings()
     if not bookings:
         return []  # If bookings is empty, just return an empty list
+    
     current_datetime = datetime.now()
-    one_hour_ago = current_datetime - timedelta(hours=1)
-    updated_bookings = [
-        booking for booking in bookings
-        if datetime.combine(booking['date'], booking['time']) > one_hour_ago
-    ]
+    updated_bookings = []
+    
+    for booking in bookings:
+        # Get the start datetime
+        start_datetime = datetime.combine(booking['date'], booking['time'])
+        
+        # Calculate end datetime based on duration (default to 60 if not present)
+        duration = booking.get('duration', 60)
+        end_datetime = start_datetime + timedelta(minutes=duration)
+        
+        # Keep booking if end time is in the future
+        if end_datetime > current_datetime:
+            updated_bookings.append(booking)
+    
     save_bookings(updated_bookings)
     return updated_bookings
 
