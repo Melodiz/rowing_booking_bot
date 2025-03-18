@@ -67,6 +67,11 @@ def parse_amount(amount_str):
     except ValueError:
         return 1  # Default to 1 if not specified or invalid
 
+def parse_duration(duration_str):
+    try: 
+        return int(duration_str)
+    except ValueError:
+        return 60  # Default to 60 minutes if not specified or invalid
 
 def parse_booking_datetime(message_text):
     current_date = datetime.now().date()
@@ -106,7 +111,7 @@ def parse_booking_datetime(message_text):
         parsed_time = parse_time(parts[1])
         parsed_amount = parse_amount(parts[2])
         parsed_date = parse_date(parts[0], current_date)
-        length_in_minutes = int(parts[3])
+        length_in_minutes = parse_duration(parts[3])
         if parsed_time is None or parsed_amount <= 0 or parsed_date is None or length_in_minutes <= 0:
             return None, None
         booking_datetime = datetime.combine(parsed_date, parsed_time)

@@ -236,6 +236,8 @@ def remove_old_bookings():
         # Keep booking if end time is in the future
         if end_datetime > current_datetime:
             updated_bookings.append(booking)
+        else:
+            add_report(booking)
     
     save_bookings(updated_bookings)
     return updated_bookings
@@ -261,3 +263,48 @@ def get_user_name(user_id):
     except Exception as e:
         logging.error(f"Error retrieving user name: {e}")
         return None
+    
+def add_report(booking):
+    report_dir = "reports"
+    if not os.path.exists(report_dir):
+        os.makedirs(report_dir)
+    
+    user_data = get_user_data()
+    user_id = booking['user_id']
+    
+    # Format time range
+    booking_time = booking['time']
+    duration = booking.get('duration', 60)
+    start_datetime = datetime.combine(booking['date'], booking_time)
+    end_datetime = start_datetime + timedelta(minutes=duration)
+    time_range = f"{booking_time.strftime('%H:%M')}-{end_datetime.strftime('%H:%M')}"
+    
+    # Get user info
+    if user_id in user_data:
+        name, telegram_link = user_data[user_id]
+        user_info = f"{name} ({telegram_link})"
+    else:
+        user_info = f"User ID: {user_id}"
+    
+    # Format places and duration
+    places = booking.get('places', 1)
+    
+    # Create the formatted entry
+    entry = f"- {time_range}: {user_info} - {places} places, {duration} min\n"
+    
+    # Prepare file path
+    booking_day = booking['date'].strftime('%Y-%m-%d')
+    formatted_date = booking['date'].strftime('%d.%m.%Y')
+    filename = f"{report_dir}/{booking_day}.txt"
+    
+    # Check if file exists
+    file_exists = os.path.isfile(filename)
+    
+    # Open file in append mode
+    with open(filename, 'a') as f:
+        # If file is new, add header
+        if not file_exists:
+            f.write(f"Report on {formatted_date}\n\n")
+        
+        # Write the booking entry
+        f.write(entry)
