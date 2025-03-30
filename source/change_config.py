@@ -90,7 +90,7 @@ def cancel_gym_closed_period(user_id):
             config = json.load(config_file)
 
         config['close_GYM_from'] = "NaN"
-        config['close_GYM_until'] = "Nan"
+        config['close_GYM_until'] = "NaN"
 
         with open('data/config.json', 'w') as config_file:
             json.dump(config, config_file, indent=2)

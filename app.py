@@ -242,7 +242,7 @@ async def cancel_gym_closing_command(update: Update, context: CallbackContext):
 async def view_gym_closing_command(update: Update, context: CallbackContext):
     """Обработка команды /view_GYM_closing."""
     closed_from, closed_until = get_gym_closed_periods()
-    if closed_from and closed_until:
+    if closed_from != "NaN" and closed_until != "NaN":
         await update.message.reply_text(f"Зал закрыт с {closed_from} до {closed_until}.")
     else:
         await update.message.reply_text("В настоящее время нет запланированного закрытия зала.")
