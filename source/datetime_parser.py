@@ -44,6 +44,8 @@ def parse_time(time_str):
         r'^(\d{2})[:.:](\d{2})$',  # hh:mm or hh.mm
         r'^(\d{4})$',  # hhmm
     ]
+    if len(time_str) == 3:
+        time_str = f"0{time_str}"  # Add leading zero if necessary
 
     for pattern in time_patterns:
         match = re.match(pattern, time_str)

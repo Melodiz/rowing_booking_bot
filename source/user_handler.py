@@ -2,6 +2,7 @@ import pandas as pd
 from telegram import Update
 from telegram.ext import CallbackContext
 import os
+import json
 
 # File to store the user data
 USER_DB_FILE = 'users.csv'
@@ -34,9 +35,11 @@ def add_user(user_id, name, telegram_link):
     df = pd.concat([df, new_user], ignore_index=True)
     df.to_csv(USER_DB_FILE, index=False)
 
-def load_password():
-    with open('password.txt', 'r') as f:
-        return f.read().strip()
+def load_password(path = 'data/config.json'):
+    with open(path, 'r') as config_file:
+        data = json.load(config_file)
+    return data.get('verification_password')
+
 
 # Verification process
 async def verify_user(update: Update, context: CallbackContext):
@@ -57,7 +60,7 @@ async def verify_user(update: Update, context: CallbackContext):
                 "давайте без имён по типу 'kkk', 'sigma', 'hot girl':)"
                 )
         else:
-            await update.message.reply_text("Неверный пароль. Пожалуйста, попробуйте снова.")
+            await update.message.reply_text("Неверный пароль. Пожалуйста, попробуйте снова:")
     elif context.user_data['verification_step'] == 'name':
         name = update.message.text
         telegram_link = f"https://t.me/{update.effective_user.username}" if update.effective_user.username else ""

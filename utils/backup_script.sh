@@ -2,7 +2,7 @@
 
 # Set variables
 REMOTE_USER="root"
-REMOTE_HOST="92.255.107.17"
+REMOTE_HOST="" # remove ip for security
 REMOTE_FILE="/root/Concept_booker/bookings.json"  # Adjust this path if needed
 LOCAL_BACKUP_DIR="/Users/melodiz/projects/Concept_booker/backups"
 SSH_KEY="/Users/melodiz/.ssh/hse_booking_bot"  # Add this line

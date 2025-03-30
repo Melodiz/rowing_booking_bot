@@ -10,12 +10,57 @@ BOOKINGS_FILE = 'bookings.json'
 bookings_df = pd.DataFrame(columns=['user_id', 'date', 'time', 'places', 'duration'])
 
 # Maximum number of bookings per hour
-MAX_BOOKINGS_PER_HOUR = 6
+def get_max_bookings_per_hour(path = 'data/config.json'):
+    with open(path, 'r') as config_file:
+        data = json.load(config_file)
+    return data.get('number_of_concepts', 6)
+
+def get_gym_timetable(path = 'data/config.json'):
+    with open(path, 'r') as config_file:
+        data = json.load(config_file)
+    return data.get('GYM_timetable')
+
+def get_gym_closed_periods(path = 'data/config.json'):
+    with open(path, 'r') as config_file:
+        data = json.load(config_file)
+    return data.get('close_GYM_from'), data.get('close_GYM_until')
+
+import json
+
+def get_instruction_text(key='book_text', path='data/texts.json'):
+    try:
+        with open(path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+            return data.get(key, "Instruction text not found.")
+    except FileNotFoundError:
+        return "texts.json file not found."
+    except json.JSONDecodeError:
+        return "Error decoding JSON from texts.json"
+    
+def get_user_status(user_id):
+    try:
+        with open('data/user_status.json', 'r') as f:
+            user_statuses = json.load(f)
+        return user_statuses.get(str(user_id), 'default')
+    except FileNotFoundError:
+        return 'default'
+
+def set_user_status(user_id, status):
+    try:
+        with open('data/user_status.json', 'r') as f:
+            user_statuses = json.load(f)
+    except FileNotFoundError:
+        user_statuses = {}
+    
+    user_statuses[str(user_id)] = status
+    
+    with open('data/user_status.json', 'w') as f:
+        json.dump(user_statuses, f)
 
 
 def get_token():
     try:
-        with open('token.json', 'r') as file:
+        with open('data/token.json', 'r') as file:
             data = json.load(file)
             return data['bot_token']
     except FileNotFoundError:
@@ -99,7 +144,7 @@ def get_available_places(booking_datetime, duration=60):
     remove_old_bookings()
     global bookings_df
     if bookings_df.empty:
-        return MAX_BOOKINGS_PER_HOUR
+        return get_max_bookings_per_hour()
 
     # Convert date strings to datetime objects
     bookings_df['start_datetime'] = pd.to_datetime(bookings_df['date'].astype(str) + ' ' + bookings_df['time'].astype(str))
@@ -125,7 +170,7 @@ def get_available_places(booking_datetime, duration=60):
     ]
     
     if overlapping_bookings.empty:
-        return MAX_BOOKINGS_PER_HOUR
+        return get_max_bookings_per_hour()
     
     # Create a list of all time points where occupancy changes
     critical_times = []
@@ -161,7 +206,7 @@ def get_available_places(booking_datetime, duration=60):
             max_occupancy = max(max_occupancy, current_occupancy)
     
     # Calculate available places based on maximum occupancy
-    available_places = MAX_BOOKINGS_PER_HOUR - max_occupancy
+    available_places = get_max_bookings_per_hour() - max_occupancy
     
     return max(0, available_places)  # Ensure we don't return negative values
 
@@ -345,7 +390,7 @@ def add_report(booking):
         # Write the booking entry
         f.write(entry)
 
-def upload_to_yandex(file_path, yandex_token_path='ya_token.json'):
+def upload_to_yandex(file_path, yandex_token_path='data/ya_token.json'):
     """
     Upload a file to Yandex Disk.
 
