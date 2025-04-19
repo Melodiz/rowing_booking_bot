@@ -152,15 +152,15 @@ async def view_bookings(update, context):
                 # For /my command, we only need to show the user's own bookings
                 user_info = users.get(get_user_name(user_id), {'count': 0, 'link': ''})
                 if user_info['count'] > 0:
-                    message += f"{time_range}: {user_info['count']} {get_concept_form(user_info['count'])}\n"
+                    message += f"{time_range}: {int(user_info['count'])} {get_concept_form(user_info['count'])}\n"
             else:
                 total_count = sum(user_info['count'] for user_info in users.values())
                 user_str_parts = []
                 for name, user_info in users.items():
                     if user_info['link']:
-                        user_str_parts.append(f"{user_info['count']}x <a href='{user_info['link']}'>{name}</a>")
+                        user_str_parts.append(f"{int(user_info['count'])}x <a href='{user_info['link']}'>{name}</a>")
                     else:
-                        user_str_parts.append(f"{user_info['count']}x {name}")
+                        user_str_parts.append(f"{int(user_info['count'])}x {name}")
                 user_str = ", ".join(user_str_parts)
                 message += f"{time_range}: {total_count} {get_concept_form(total_count)} ({user_str})\n"
         message += "\n"
